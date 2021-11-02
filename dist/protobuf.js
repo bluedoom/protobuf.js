@@ -1,6 +1,6 @@
 /*!
  * protobuf.js v6.10.2 (c) 2016, daniel wirtz
- * compiled tue, 09 mar 2021 14:56:17 utc
+ * compiled tue, 02 nov 2021 15:29:59 utc
  * licensed under the bsd-3-clause license
  * see: https://github.com/dcodeio/protobuf.js for details
  */
@@ -304,7 +304,7 @@ function codegen(functionParams, functionName) {
             return "%";
         });
         if (formatOffset !== formatParams.length)
-            throw Error("parameter count mismatch: "+formatStringOrScope);
+            throw Error("parameter count mismatch");
         body.push(formatStringOrScope);
         return Codegen;
     }
@@ -1646,7 +1646,7 @@ converter.fromObject = function fromObject(mtype) {
         }
     }
 
-    const result = gen("return m");
+    var result = gen("return m");
     return result;
     /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
 };
@@ -2298,6 +2298,9 @@ function Field(name, id, type, rule, extend, options, comment) {
      * Field rule, if any.
      * @type {string|undefined}
      */
+    if (rule === "proto3_optional") {
+        rule = "optional";
+    }
     this.rule = rule && rule !== "optional" ? rule : undefined; // toJSON
 
     /**
@@ -3398,6 +3401,8 @@ Namespace.prototype.add = function add(object) {
             if (prev instanceof Namespace && object instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
                 // replace plain namespace but keep existing nested elements and options
                 var nested = prev.nestedArray;
+                if (prev.filename)
+                    object.filename = prev.filename;
                 for (var i = 0; i < nested.length; ++i)
                     object.add(nested[i]);
                 this.remove(prev);
@@ -3440,10 +3445,10 @@ Namespace.prototype.remove = function remove(object) {
  * Defines additial namespaces within this one if not yet existing.
  * @param {string|string[]} path Path to create
  * @param {*} [json] Nested types to create from JSON
+ * @param {string} [filename] Name of the file defining the namespace
  * @returns {Namespace} Pointer to the last namespace created or `this` if path is empty
  */
-Namespace.prototype.define = function define(path, json) {
-
+Namespace.prototype.define = function define(path, json, filename) {
     if (util.isString(path))
         path = path.split(".");
     else if (!Array.isArray(path))
@@ -3460,6 +3465,8 @@ Namespace.prototype.define = function define(path, json) {
                 throw Error("path conflicts with non-namespace objects");
         } else
             ptr.add(ptr = new Namespace(part));
+            if (!ptr.filename)
+                ptr.filename = filename;
     }
     if (json)
         ptr.addJSON(json);
@@ -4268,7 +4275,7 @@ function parse(source, root, options) {
         if (!typeRefRe.test(pkg))
             throw illegal(pkg, "name");
 
-        ptr = ptr.define(pkg);
+        ptr = ptr.define(pkg, null, parse.filename);
         skip(";");
     }
 
@@ -4371,9 +4378,17 @@ function parse(source, root, options) {
                     break;
 
                 case "required":
-                case "optional":
                 case "repeated":
                     parseField(type, token);
+                    break;
+
+                case "optional":
+                    /* istanbul ignore if */
+                    if (isProto3) {
+                        parseField(type, "proto3_optional");
+                    } else {
+                        parseField(type, "optional");
+                    }
                     break;
 
                 case "oneof":
@@ -4434,7 +4449,16 @@ function parse(source, root, options) {
         }, function parseField_line() {
             parseInlineOptions(field);
         });
-        parent.add(field);
+
+        if (rule === "proto3_optional") {
+            // for proto3 optional fields, we create a single-member Oneof to mimic "optional" behavior
+            var oneof = new OneOf("_" + name);
+            field.setOption("proto3_optional", true);
+            oneof.add(field);
+            parent.add(oneof);
+        } else {
+            parent.add(field);
+        }
 
         // JSON defaults to packed=true if not set so we have to set packed=false explicity when
         // parsing proto2 descriptors without the option, where applicable. This must be done for
@@ -4468,9 +4492,17 @@ function parse(source, root, options) {
                     break;
 
                 case "required":
-                case "optional":
                 case "repeated":
                     parseField(type, token);
+                    break;
+
+                case "optional":
+                    /* istanbul ignore if */
+                    if (isProto3) {
+                        parseField(type, "proto3_optional");
+                    } else {
+                        parseField(type, "optional");
+                    }
                     break;
 
                 /* istanbul ignore next */
@@ -4632,7 +4664,23 @@ function parse(source, root, options) {
                     skip(":");
                     if (peek() === "{")
                         value = parseOptionValue(parent, name + "." + token);
-                    else {
+                    else if (peek() === "[") {
+                        // option (my_option) = {
+                        //     repeated_value: [ "foo", "bar" ]
+                        // };
+                        value = [];
+                        var lastValue;
+                        if (skip("[", true)) {
+                            do {
+                                lastValue = readValue(true);
+                                value.push(lastValue);
+                            } while (skip(",", true));
+                            skip("]");
+                            if (typeof lastValue !== "undefined") {
+                                setOption(parent, name + "." + token, lastValue);
+                            }
+                        }
+                    } else {
                         value = readValue(true);
                         setOption(parent, name + "." + token, value);
                     }
@@ -4641,7 +4689,7 @@ function parse(source, root, options) {
                 if (prevValue)
                     value = [].concat(prevValue).concat(value);
                 result[propName] = value;
-                skip(",", true);
+                skip(",", true) || skip(";", true);
             }
             return result;
         }
@@ -4754,8 +4802,16 @@ function parse(source, root, options) {
 
                 case "required":
                 case "repeated":
-                case "optional":
                     parseField(parent, token, reference);
+                    break;
+
+                case "optional":
+                    /* istanbul ignore if */
+                    if (isProto3) {
+                        parseField(parent, "proto3_optional", reference);
+                    } else {
+                        parseField(parent, "optional", reference);
+                    }
                     break;
 
                 default:
@@ -5337,6 +5393,12 @@ function Root(options) {
      * @type {string[]}
      */
     this.files = [];
+
+    /**
+     * Paths of imported files
+     * @type {string[]|null}
+     */
+     this.imports = null;
 }
 
 /**
@@ -5429,6 +5491,14 @@ Root.prototype.load = function load(filename, options, callback) {
                 var parsed = parse(source, self, options),
                     resolved,
                     i = 0;
+                if (self.imports === null) {
+                    if (parsed.imports)
+                        self.imports = [...parsed.imports];
+                    else
+                        self.imports = []
+                    if (parsed.weakImports)
+                        self.imports = self.imports.concat(parsed.weakImports);
+                }
                 if (parsed.imports)
                     for (; i < parsed.imports.length; ++i)
                         if (resolved = getBundledFileName(parsed.imports[i]) || self.resolvePath(filename, parsed.imports[i]))
@@ -5671,7 +5741,7 @@ module.exports = {};
 /**
  * Named roots.
  * This is where pbjs stores generated structures (the option `-r, --root` specifies a name).
- * Can also be used manually to make roots available accross modules.
+ * Can also be used manually to make roots available across modules.
  * @name roots
  * @type {Object.<string,Root>}
  * @example
@@ -6141,11 +6211,8 @@ function tokenize(source, alternateCommentMode) {
     var offset = 0,
         length = source.length,
         line = 1,
-        commentType = null,
-        commentText = null,
-        commentLine = 0,
-        commentLineEmpty = false,
-        commentIsLeading = false;
+        lastCommentLine = 0,
+        comments = {};
 
     var stack = [];
 
@@ -6198,10 +6265,11 @@ function tokenize(source, alternateCommentMode) {
      * @inner
      */
     function setComment(start, end, isLeading) {
-        commentType = source.charAt(start++);
-        commentLine = line;
-        commentLineEmpty = false;
-        commentIsLeading = isLeading;
+        var comment = {
+            type: source.charAt(start++),
+            lineEmpty: false,
+            leading: isLeading,
+        };
         var lookback;
         if (alternateCommentMode) {
             lookback = 2;  // alternate comment parsing: "//" or "/*"
@@ -6213,7 +6281,7 @@ function tokenize(source, alternateCommentMode) {
         do {
             if (--commentOffset < 0 ||
                     (c = source.charAt(commentOffset)) === "\n") {
-                commentLineEmpty = true;
+                comment.lineEmpty = true;
                 break;
             }
         } while (c === " " || c === "\t");
@@ -6224,9 +6292,12 @@ function tokenize(source, alternateCommentMode) {
             lines[i] = lines[i]
                 .replace(alternateCommentMode ? setCommentAltRe : setCommentRe, "")
                 .trim();
-        commentText = lines
+        comment.text = lines
             .join("\n")
             .trim();
+
+        comments[line] = comment;
+        lastCommentLine = line;
     }
 
     function isDoubleSlashCommentLine(startOffset) {
@@ -6295,6 +6366,9 @@ function tokenize(source, alternateCommentMode) {
                         ++offset;
                         if (isDoc) {
                             setComment(start, offset - 1, isLeadingComment);
+                            // Trailing comment cannot not be multi-line,
+                            // so leading comment state should be reset to handle potential next comments
+                            isLeadingComment = true;
                         }
                         ++line;
                         repeat = true;
@@ -6310,12 +6384,17 @@ function tokenize(source, alternateCommentMode) {
                                     break;
                                 }
                                 offset++;
+                                if (!isLeadingComment) {
+                                    // Trailing comment cannot not be multi-line
+                                    break;
+                                }
                             } while (isDoubleSlashCommentLine(offset));
                         } else {
                             offset = Math.min(length, findEndOfLine(offset) + 1);
                         }
                         if (isDoc) {
                             setComment(start, offset, isLeadingComment);
+                            isLeadingComment = true;
                         }
                         line++;
                         repeat = true;
@@ -6337,6 +6416,7 @@ function tokenize(source, alternateCommentMode) {
                     ++offset;
                     if (isDoc) {
                         setComment(start, offset - 2, isLeadingComment);
+                        isLeadingComment = true;
                     }
                     repeat = true;
                 } else {
@@ -6412,17 +6492,22 @@ function tokenize(source, alternateCommentMode) {
      */
     function cmnt(trailingLine) {
         var ret = null;
+        var comment;
         if (trailingLine === undefined) {
-            if (commentLine === line - 1 && (alternateCommentMode || commentType === "*" || commentLineEmpty)) {
-                ret = commentIsLeading ? commentText : null;
+            comment = comments[line - 1];
+            delete comments[line - 1];
+            if (comment && (alternateCommentMode || comment.type === "*" || comment.lineEmpty)) {
+                ret = comment.leading ? comment.text : null;
             }
         } else {
             /* istanbul ignore else */
-            if (commentLine < trailingLine) {
+            if (lastCommentLine < trailingLine) {
                 peek();
             }
-            if (commentLine === trailingLine && !commentLineEmpty && (alternateCommentMode || commentType === "/")) {
-                ret = commentIsLeading ? null : commentText;
+            comment = comments[trailingLine];
+            delete comments[trailingLine];
+            if (comment && !comment.lineEmpty && (alternateCommentMode || comment.type === "/")) {
+                ret = comment.leading ? null : comment.text;
             }
         }
         return ret;

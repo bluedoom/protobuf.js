@@ -1,6 +1,6 @@
 /*!
  * protobuf.js v6.10.2 (c) 2016, daniel wirtz
- * compiled tue, 09 mar 2021 14:56:17 utc
+ * compiled tue, 02 nov 2021 15:29:59 utc
  * licensed under the bsd-3-clause license
  * see: https://github.com/dcodeio/protobuf.js for details
  */
@@ -304,7 +304,7 @@ function codegen(functionParams, functionName) {
             return "%";
         });
         if (formatOffset !== formatParams.length)
-            throw Error("parameter count mismatch: "+formatStringOrScope);
+            throw Error("parameter count mismatch");
         body.push(formatStringOrScope);
         return Codegen;
     }
@@ -1245,7 +1245,7 @@ converter.fromObject = function fromObject(mtype) {
         }
     }
 
-    const result = gen("return m");
+    var result = gen("return m");
     return result;
     /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
 };
@@ -1897,6 +1897,9 @@ function Field(name, id, type, rule, extend, options, comment) {
      * Field rule, if any.
      * @type {string|undefined}
      */
+    if (rule === "proto3_optional") {
+        rule = "optional";
+    }
     this.rule = rule && rule !== "optional" ? rule : undefined; // toJSON
 
     /**
@@ -2983,6 +2986,8 @@ Namespace.prototype.add = function add(object) {
             if (prev instanceof Namespace && object instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
                 // replace plain namespace but keep existing nested elements and options
                 var nested = prev.nestedArray;
+                if (prev.filename)
+                    object.filename = prev.filename;
                 for (var i = 0; i < nested.length; ++i)
                     object.add(nested[i]);
                 this.remove(prev);
@@ -3025,10 +3030,10 @@ Namespace.prototype.remove = function remove(object) {
  * Defines additial namespaces within this one if not yet existing.
  * @param {string|string[]} path Path to create
  * @param {*} [json] Nested types to create from JSON
+ * @param {string} [filename] Name of the file defining the namespace
  * @returns {Namespace} Pointer to the last namespace created or `this` if path is empty
  */
-Namespace.prototype.define = function define(path, json) {
-
+Namespace.prototype.define = function define(path, json, filename) {
     if (util.isString(path))
         path = path.split(".");
     else if (!Array.isArray(path))
@@ -3045,6 +3050,8 @@ Namespace.prototype.define = function define(path, json) {
                 throw Error("path conflicts with non-namespace objects");
         } else
             ptr.add(ptr = new Namespace(part));
+            if (!ptr.filename)
+                ptr.filename = filename;
     }
     if (json)
         ptr.addJSON(json);
@@ -4133,6 +4140,12 @@ function Root(options) {
      * @type {string[]}
      */
     this.files = [];
+
+    /**
+     * Paths of imported files
+     * @type {string[]|null}
+     */
+     this.imports = null;
 }
 
 /**
@@ -4225,6 +4238,14 @@ Root.prototype.load = function load(filename, options, callback) {
                 var parsed = parse(source, self, options),
                     resolved,
                     i = 0;
+                if (self.imports === null) {
+                    if (parsed.imports)
+                        self.imports = [...parsed.imports];
+                    else
+                        self.imports = []
+                    if (parsed.weakImports)
+                        self.imports = self.imports.concat(parsed.weakImports);
+                }
                 if (parsed.imports)
                     for (; i < parsed.imports.length; ++i)
                         if (resolved = getBundledFileName(parsed.imports[i]) || self.resolvePath(filename, parsed.imports[i]))
@@ -4467,7 +4488,7 @@ module.exports = {};
 /**
  * Named roots.
  * This is where pbjs stores generated structures (the option `-r, --root` specifies a name).
- * Can also be used manually to make roots available accross modules.
+ * Can also be used manually to make roots available across modules.
  * @name roots
  * @type {Object.<string,Root>}
  * @example

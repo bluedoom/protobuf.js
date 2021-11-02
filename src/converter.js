@@ -134,7 +134,7 @@ converter.fromObject = function fromObject(mtype) {
         }
     }
 
-    const result = gen("return m");
+    var result = gen("return m");
     return result;
     /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
 };
