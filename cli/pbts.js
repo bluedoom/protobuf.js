@@ -90,9 +90,9 @@ exports.main = function(args, callback) {
 
     // Load from disk
     } else {
-        if (!argv.bundle && files.length > 1) {
-            throw Error("Only one file may be specified with --copy-imports.");
-        }
+        // if (!argv.bundle && files.length > 1) {
+        //     throw Error("Only one file may be specified with --copy-imports.");
+        // }
         callJsdoc();
     }
 
