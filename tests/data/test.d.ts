@@ -318,7 +318,7 @@ export namespace jspb {
         interface IDefaultValues {
             stringField?: (string|null);
             boolField?: (boolean|null);
-            intField?: (number|Long|null);
+            intField?: (bigint|null);
             enumField?: (jspb.test.DefaultValues.Enum|null);
             emptyField?: (string|null);
             bytesField?: (Uint8Array|null);
@@ -328,7 +328,7 @@ export namespace jspb {
             constructor(properties?: jspb.test.IDefaultValues);
             public stringField: string;
             public boolField: boolean;
-            public intField: (number|Long);
+            public intField: bigint;
             public enumField: jspb.test.DefaultValues.Enum;
             public emptyField: string;
             public bytesField: Uint8Array;
@@ -644,7 +644,7 @@ export namespace jspb {
         interface ITestMapFieldsNoBinary {
             mapStringString?: ({ [k: string]: string }|null);
             mapStringInt32?: ({ [k: string]: number }|null);
-            mapStringInt64?: ({ [k: string]: (number|Long) }|null);
+            mapStringInt64?: ({ [k: string]: bigint }|null);
             mapStringBool?: ({ [k: string]: boolean }|null);
             mapStringDouble?: ({ [k: string]: number }|null);
             mapStringEnum?: ({ [k: string]: jspb.test.MapValueEnumNoBinary }|null);
@@ -660,7 +660,7 @@ export namespace jspb {
             constructor(properties?: jspb.test.ITestMapFieldsNoBinary);
             public mapStringString: { [k: string]: string };
             public mapStringInt32: { [k: string]: number };
-            public mapStringInt64: { [k: string]: (number|Long) };
+            public mapStringInt64: { [k: string]: bigint };
             public mapStringBool: { [k: string]: boolean };
             public mapStringDouble: { [k: string]: number };
             public mapStringEnum: { [k: string]: jspb.test.MapValueEnumNoBinary };
@@ -1349,8 +1349,8 @@ export namespace google {
         interface IUninterpretedOption {
             name?: (google.protobuf.UninterpretedOption.INamePart[]|null);
             identifierValue?: (string|null);
-            positiveIntValue?: (number|Long|null);
-            negativeIntValue?: (number|Long|null);
+            positiveIntValue?: (bigint|null);
+            negativeIntValue?: (bigint|null);
             doubleValue?: (number|null);
             stringValue?: (Uint8Array|null);
             aggregateValue?: (string|null);
@@ -1360,8 +1360,8 @@ export namespace google {
             constructor(properties?: google.protobuf.IUninterpretedOption);
             public name: google.protobuf.UninterpretedOption.INamePart[];
             public identifierValue: string;
-            public positiveIntValue: (number|Long);
-            public negativeIntValue: (number|Long);
+            public positiveIntValue: bigint;
+            public negativeIntValue: bigint;
             public doubleValue: number;
             public stringValue: Uint8Array;
             public aggregateValue: string;
