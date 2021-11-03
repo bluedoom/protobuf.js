@@ -137,6 +137,14 @@ export namespace converter {
 }
 
 /**
+ * Generates a runtime message to plain object converter specific to the specified message type.
+ * @param enum_name Message type
+ * @param enum_value_name
+ * @returns RealName instance
+ */
+export function GetEnumValueName(enum_name: String, enum_value_name: String): String;
+
+/**
  * Generates a decoder specific to the specified message type.
  * @param mtype Message type
  * @returns Codegen instance
@@ -299,9 +307,6 @@ export class FieldBase extends ReflectionObject {
      * @param [comment] Comment associated with this field
      */
     constructor(name: string, id: number, type: string, rule?: (string|{ [k: string]: any }), extend?: (string|{ [k: string]: any }), options?: { [k: string]: any }, comment?: string);
-
-    /** Field rule, if any. */
-    public rule?: string;
 
     /** Field type. */
     public type: string;
@@ -783,9 +788,10 @@ export abstract class NamespaceBase extends ReflectionObject {
      * Defines additial namespaces within this one if not yet existing.
      * @param path Path to create
      * @param [json] Nested types to create from JSON
+     * @param [filename] Name of the file defining the namespace
      * @returns Pointer to the last namespace created or `this` if path is empty
      */
-    public define(path: (string|string[]), json?: any): Namespace;
+    public define(path: (string|string[]), json?: any, filename?: string): Namespace;
 
     /**
      * Resolves this namespace's and all its nested objects' type references. Useful to validate a reflection tree, but comes at a cost.
@@ -1251,6 +1257,9 @@ export class Root extends NamespaceBase {
     /** Resolved file names of loaded files. */
     public files: string[];
 
+    /** Paths of imported files */
+    public imports: (string[]|null);
+
     /**
      * Loads a namespace descriptor into a root namespace.
      * @param json Nameespace descriptor
@@ -1312,7 +1321,7 @@ export class Root extends NamespaceBase {
 /**
  * Named roots.
  * This is where pbjs stores generated structures (the option `-r, --root` specifies a name).
- * Can also be used manually to make roots available accross modules.
+ * Can also be used manually to make roots available across modules.
  */
 export let roots: { [k: string]: Root };
 

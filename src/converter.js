@@ -5,6 +5,7 @@
  */
 var converter = exports;
 
+const { getegid } = require("process");
 var Enum = require("./enum"),
     util = require("./util");
 
@@ -26,7 +27,7 @@ function genValuePartial_fromObject(gen, field, fieldIndex, prop) {
                 if (field.repeated && values[keys[i]] === field.typeDefault) gen
                 ("default:");
                 gen
-                ("case%j:", keys[i])
+                ("case%j:", GetEnumValueName(field.resolvedType.name,keys[i]))
                 ("case %i:", values[keys[i]])
                     ("m%s=%j", prop, values[keys[i]])
                     ("break");
@@ -231,7 +232,7 @@ converter.toObject = function toObject(mtype) {
             var field = normalFields[i],
                 prop  = util.safeProp(field.name);
             if (field.resolvedType instanceof Enum) gen
-        ("d%s=o.enums===String?%j:%j", prop, field.resolvedType.valuesById[field.typeDefault], field.typeDefault);
+        ("d%s=o.enums===String?%j:%j", prop, GetEnumValueName(field.resolvedType.name, field.resolvedType.valuesById[field.typeDefault]), field.typeDefault);
             else if (field.long) gen
             ("var n=new util.LongBits(%i,%i,%j)", field.typeDefault.low, field.typeDefault.high, field.typeDefault.unsigned)
             ("d%s=o.longs===String?n.toBigInt().toString():o.longs===BigInt?n.toBigInt().toString():n", prop);
@@ -283,3 +284,144 @@ converter.toObject = function toObject(mtype) {
     return result;
     /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
 };
+
+
+
+function IsDigit(value)
+{
+    return /^[0-9]$/.test(value)
+}
+
+
+/**
+ * Generates a runtime message to plain object converter specific to the specified message type.
+ * @param {String} enum_name Message type
+ * @param {String} enum_value_name 
+ * @returns {String} RealName instance
+ */
+function GetEnumValueName(enum_name, enum_value_name)
+{
+    let stripped = TryRemovePrefix(enum_name, enum_value_name);
+    let result = ShoutyToPascalCase(stripped);
+    // Just in case we have an enum name of FOO and a value of FOO_2... make sure the returned
+    // string is a valid identifier.
+    
+    if (IsDigit(result.charAt(0)))
+    {
+        result = "_" + result;
+    }
+    return result;
+}
+
+exports.GetEnumValueName = GetEnumValueName;
+
+// Attempt to remove a prefix from a value, ignoring casing and skipping underscores.
+// (foo, foo_bar) => bar - underscore after prefix is skipped
+// (FOO, foo_bar) => bar - casing is ignored
+// (foo_bar, foobarbaz) => baz - underscore in prefix is ignored
+// (foobar, foo_barbaz) => baz - underscore in value is ignored
+// (foo, bar) => bar - prefix isn't matched; return original value
+
+function TryRemovePrefix(prefix, value)
+{
+    var prefix_to_match = '';
+    // First normalize to a lower-case no-underscores prefix to match against
+    for (let i = 0; i < prefix.length; i++)
+    {
+        let c = prefix.charAt(i)
+        if (c != '_')
+        {
+            prefix_to_match += c.toLowerCase();
+        }
+    }
+
+    // This keeps track of how much of value we've consumed
+    let prefix_index, value_index;
+    for (prefix_index = 0, value_index = 0;
+        prefix_index < prefix_to_match.length && value_index < value.length;
+        value_index++)
+    {
+        // Skip over underscores in the value
+        let c = value.charAt(value_index)
+        if (c == '_')
+        {
+            continue;
+        }
+        if (c != null && c.toLowerCase() != prefix_to_match.charAt(prefix_index++))
+        {
+            // Failed to match the prefix - bail out early.
+            return value;
+        }
+    }
+
+    // If we didn't finish looking through the prefix, we can't strip it.
+    if (prefix_index < prefix_to_match.length)
+    {
+        return value;
+    }
+
+    // Step over any underscores after the prefix
+    while (value_index < value.length && value.charAt(value_index) == '_')
+    {
+        value_index++;
+    }
+
+    // If there's nothing left (e.g. it was a prefix with only underscores afterwards), don't strip.
+    if (value_index == value.length)
+    {
+        return value;
+    }
+
+    let c = value.substr(value_index);
+    return c;
+}
+
+
+function IsLetterOrDigit(char)
+{
+    return /^[a-zA-Z0-9]$/.test(char);
+}
+
+// Convert a string which is expected to be SHOUTY_CASE (but may not be *precisely* shouty)
+// into a PascalCase string. Precise rules implemented:
+
+// Previous input character      Current character         Case
+// Any                           Non-alphanumeric          Skipped
+// None - first char of input    Alphanumeric              Upper
+// Non-letter (e.g. _ or 1)      Alphanumeric              Upper
+// Numeric                       Alphanumeric              Upper
+// Lower letter                  Alphanumeric              Same as current
+// Upper letter                  Alphanumeric              Lower
+function ShoutyToPascalCase(input)
+{
+    var result = ""
+    // Simple way of implementing "always start with upper"
+    var previous = '_';
+    for (let i = 0; i < input.length; i++)
+    {
+        let current = input.charAt(i);
+        if (!IsLetterOrDigit(current))
+        {
+            previous = current;
+            continue;
+        }
+        if (!IsLetterOrDigit(previous))
+        {
+            result += current.toUpperCase();
+        }
+        else if (IsDigit(previous))
+        {
+            result += current.toUpperCase();
+        }
+        else if (/^[a-z]$/.test(previous))
+        {
+            result += (current);
+        }
+        else
+        {
+            result += (current.toLowerCase());
+        }
+        previous = current;
+    }
+    return result;
+}
