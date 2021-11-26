@@ -5,7 +5,6 @@
  */
 var converter = exports;
 
-const { getegid } = require("process");
 var Enum = require("./enum"),
     util = require("./util");
 

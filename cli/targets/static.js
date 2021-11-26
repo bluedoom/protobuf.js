@@ -20,30 +20,8 @@ var config = {};
 static_target.description = "Static code without reflection (non-functional on its own)";
 
 function static_target(root, options, callback) {
-    var importInfo = {
-        aliasToModule: {},
-        moduleToAlias: {},
-        exportNames: {},
-    };
     config = options;
     try {
-        if (!config.bundle && root.imports && root.imports.length) {
-            // An import of the form `import * as module from "module"` is needed
-            // for use in the jsdoc comments. But since these imports are only used
-            // for types, the typescript compiler elides them. So an import of
-            // of the form `import "module"` is also included.
-            for (let i of root.imports) {
-                var moduleName = getModuleName(i);
-                assignAlias(moduleName, importInfo);
-                push("import \"" + moduleName + "\";");
-            }
-            push("");
-            for (let i of root.imports) {
-                var moduleName = getModuleName(i);
-                push("import * as " + importInfo.moduleToAlias[moduleName] + " from \"" + moduleName + "\";");
-            }
-            push("");
-        }
         var aliases = [];
         if (config.decode)
             aliases.push("Reader");
@@ -65,8 +43,7 @@ function static_target(root, options, callback) {
         }
         var rootProp = util.safeProp(config.root || "default");
         push((config.es6 ? "const" : "var") + " $root = $protobuf.roots" + rootProp + " || ($protobuf.roots" + rootProp + " = {});");
-        var filename = util.path.isAbsolute(config._[0]) ? config._[0] : process.cwd() + '/' + config._[0];
-        buildNamespace(null, root, config.bundle, filename, importInfo);
+        buildNamespace(null, root);
         return callback(null, out.join("\n"));
     } catch (err) {
         return callback(err);
@@ -75,28 +52,6 @@ function static_target(root, options, callback) {
         indent = 0;
         config = {};
     }
-}
-
-function assignAlias(moduleName, importInfo) {
-    if (importInfo.moduleToAlias[moduleName])
-        return importInfo.moduleToAlias[moduleName];
-
-    let alias = escapeName(moduleName.replace(/^([A-Z])|[\s.\/_-]+(\w)/g, function(match, p1, p2, offset) {
-        if (p2) return p2.toUpperCase();
-        return p1.toLowerCase();
-    }));
-    while (importInfo.aliasToModule[alias])
-        alias += '_';
-    importInfo.moduleToAlias[moduleName] = alias;
-    importInfo.aliasToModule[alias] = moduleName;
-    return alias
-}
-
-function getModuleName(path) {
-    if (path.endsWith(".proto"))
-        return path.slice(0, -".proto".length);
-    else
-        return path;
 }
 
 function push(line) {
@@ -151,51 +106,48 @@ function aOrAn(name) {
         : "a ") + name;
 }
 
-function buildNamespace(ref, ns, bundle, filename, importInfo) {
+function buildNamespace(ref, ns) {
     if (!ns)
         return;
 
     if (ns instanceof Service && !config.service)
         return;
 
-    // With the no-bundle option, only output namespaces that are defined in the
-    // file that's being output
-    if (!bundle && ns.name != '' && (ns.filename === null || (ns.filename && ns.filename !== filename)))
-        return;
-
     if (ns.name !== "") {
-        if (!(ns instanceof Type) && !(ns instanceof Service)) {
-            push("");
-            pushComment([
-                ns.comment || "Namespace " + ns.name + ".",
-                ns.parent instanceof protobuf.Root ? "@exports " + escapeName(ns.name) : "@memberof " + exportName(ns.parent),
-                "@namespace"
-            ]);
-        }
         push("");
         if (!ref && config.es6)
-            push("export const " + escapeName(ns.name) + " = " + escapeName(ref) + "." + escapeName(ns.name) + " = ((" + escapeName(ns.name) + ") => {");
+            push("export const " + escapeName(ns.name) + " = " + escapeName(ref) + "." + escapeName(ns.name) + " = (() => {");
         else
-            push(escapeName(ref) + "." + escapeName(ns.name) + " = (function(" + escapeName(ns.name) + ") {");
+            push(escapeName(ref) + "." + escapeName(ns.name) + " = (function() {");
         ++indent;
     }
 
+    
     if (ns instanceof Type) {
-        buildType(undefined, ns, bundle, importInfo);
+        buildType(undefined, ns);
     } else if (ns instanceof Service)
-        buildService(undefined, ns, bundle, importInfo);
+        buildService(undefined, ns);
+    else if (ns.name !== "") {
+        push("");
+        pushComment([
+            ns.comment || "Namespace " + ns.name + ".",
+            ns.parent instanceof protobuf.Root ? "@exports " + escapeName(ns.name) : "@memberof " + exportName(ns.parent),
+            "@namespace"
+        ]);
+        push((config.es6 ? "const" : "var") + " " + escapeName(ns.name) + " = {};");
+    }
 
     ns.nestedArray.forEach(function(nested) {
         if (nested instanceof Enum)
             buildEnum(ns.name, nested);
         else if (nested instanceof Namespace)
-            buildNamespace(ns.name, nested, bundle, filename, importInfo);
+            buildNamespace(ns.name, nested);
     });
     if (ns.name !== "") {
         push("");
         push("return " + escapeName(ns.name) + ";");
         --indent;
-        push("})(" + escapeName(ref) + util.safeProp(escapeName(ns.name)) + " || {});");
+        push("})();");
     }
 }
 
@@ -358,39 +310,6 @@ function buildFunction(type, functionName, gen, scope) {
         push("};})(" + Object.keys(scope).map(function(key) { return scope[key]; }).join(", ") + ");");
     else
         push("};");
-}
-
-function getAliasedType(resolvedType, bundle, importInfo) {
-    var type = exportName(resolvedType, !(resolvedType instanceof protobuf.Enum || config.forceMessage));
-    if (!bundle) {
-        var memberModuleName;
-        if (resolvedType.filename === null) {
-            // The set of common types are handled differently than other types
-            // and don't have an associated filename, so we'll just look up
-            // the module name
-            var memberModuleName = {
-                "google.protobuf.Any": "google/protobuf/any",
-                "google.protobuf.Empty": "google/protobuf/empty",
-                "google.protobuf.FieldMask": "google/protobuf/field_mask",
-                "google.protobuf.Struct": "google/protobuf/struct",
-                "google.protobuf.Value": "google/protobuf/struct",
-                "google.protobuf.NullValue": "google/protobuf/struct",
-                "google.protobuf.ListValue": "google/protobuf/struct",
-                "google.protobuf.Timestamp": "google/protobuf/timestamp",
-                "google.protobuf.Wrappers": "google/protobuf/wrappers",
-            }[resolvedType.__exportName];
-        }
-        else
-            memberModuleName = getModuleName(resolvedType.filename);
-
-        for (var moduleName in importInfo.moduleToAlias) {
-            if (memberModuleName && memberModuleName.endsWith(moduleName)) {
-                type = importInfo.moduleToAlias[moduleName] + "." + type;
-                break;
-            }
-        }
-    }
-    return type
 }
 
 function toJsType(field, bundle, importInfo) {
@@ -667,24 +586,9 @@ function buildType(ref, type, bundle, importInfo) {
         --indent;
         push("};");
     }
-    if (config.typeurl) {
-        push("");
-        pushComment([
-            "Gets the default type url for " + type.name,
-            "@function getTypeUrl",
-            "@memberof " + exportName(type),
-            "@static",
-            "@returns {string} The default type url"
-        ]);
-        push(escapeName(type.name) + ".getTypeUrl = function getTypeUrl() {");
-        ++indent;
-        push("return \"type.googleapis.com/" + exportName(type) + "\";");
-        --indent;
-        push("};");
-    }
 }
 
-function buildService(ref, service, bundle, importInfo) {
+function buildService(ref, service) {
 
     push("");
     pushComment([
@@ -726,8 +630,8 @@ function buildService(ref, service, bundle, importInfo) {
 
     service.methodsArray.forEach(function(method) {
         method.resolve();
-        var requestType = getAliasedType(method.resolvedRequestType, bundle, importInfo);
-        var responseType = getAliasedType(method.resolvedResponseType, bundle, importInfo);
+        var requestType = exportName(method.resolvedRequestType, !config.forceMessage);
+        var responseType = exportName(method.resolvedResponseType);
 
         var lcName = protobuf.util.lcFirst(method.name),
             cbName = escapeName(method.name + "Callback");

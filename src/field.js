@@ -1,427 +1,367 @@
 "use strict";
-/**
- * Runtime message from/to plain object converters.
- * @namespace
- */
-var converter = exports;
+module.exports = Field;
 
-const { getegid } = require("process");
-var Enum = require("./enum"),
-    util = require("./util");
+// extends ReflectionObject
+var ReflectionObject = require("./object");
+((Field.prototype = Object.create(ReflectionObject.prototype)).constructor = Field).className = "Field";
 
-/**
- * Generates a partial value fromObject conveter.
- * @param {Codegen} gen Codegen instance
- * @param {Field} field Reflected field
- * @param {number} fieldIndex Field index
- * @param {string} prop Property reference
- * @returns {Codegen} Codegen instance
- * @ignore
- */
-function genValuePartial_fromObject(gen, field, fieldIndex, prop) {
-    /* eslint-disable no-unexpected-multiline, block-scoped-var, no-redeclare */
-    if (field.resolvedType) {
-        if (field.resolvedType instanceof Enum) { gen
-            ("switch(d%s){", prop);
-            for (var values = field.resolvedType.values, keys = Object.keys(values), i = 0; i < keys.length; ++i) {
-                if (field.repeated && values[keys[i]] === field.typeDefault) gen
-                ("default:");
-                gen
-                ("case%j:", GetEnumValueName(field.resolvedType.name,keys[i]))
-                ("case %i:", values[keys[i]])
-                    ("m%s=%j", prop, values[keys[i]])
-                    ("break");
-            } gen
-            ("}");
-        } else gen
-            ("if(typeof d%s!==\"object\")", prop)
-                ("throw TypeError(%j)", field.fullName + ": object expected")
-            ("m%s=types[%i].fromObject(d%s)", prop, fieldIndex, prop);
-    } else {
-        var isUnsigned = false;
-        switch (field.type) {
-            case "double":
-            case "float": gen
-                ("m%s=Number(d%s)", prop, prop); // also catches "NaN", "Infinity"
-                break;
-            case "uint32":
-            case "fixed32": gen
-                ("m%s=d%s>>>0", prop, prop);
-                break;
-            case "int32":
-            case "sint32":
-            case "sfixed32": gen
-                ("m%s=d%s|0", prop, prop);
-                break;
-            case "uint64":
-                isUnsigned = true;
-                // eslint-disable-line no-fallthrough
-            case "int64":
-            case "sint64":
-            case "fixed64":
-            case "sfixed64": gen
-                ("if(typeof d%s===\"string\"||typeof d%s===\"number\"||typeof d%s===\"bigint\")", prop, prop, prop)
-                    ("m%s=BigInt(d%s)", prop, prop)
-                ("else if(typeof d%s===\"object\")", prop)
-                    ("m%s=new util.LongBits(d%s.low>>>0,d%s.high>>>0).toBigInt(%s)", prop, prop, prop, isUnsigned);
-                break;
-            case "bytes": gen
-                ("if(typeof d%s===\"string\")", prop)
-                    ("util.base64.decode(d%s,m%s=util.newBuffer(util.base64.length(d%s)),0)", prop, prop, prop)
-                ("else if(d%s.length >= 0)", prop)
-                    ("m%s=d%s", prop, prop);
-                break;
-            case "string": gen
-                ("m%s=String(d%s)", prop, prop);
-                break;
-            case "bool": gen
-                ("m%s=Boolean(d%s)", prop, prop);
-                break;
-            /* default: gen
-                ("m%s=d%s", prop, prop);
-                break; */
-        }
-    }
-    return gen;
-    /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
-}
+var Enum  = require("./enum"),
+    types = require("./types"),
+    util  = require("./util");
+
+var Type; // cyclic
+
+var ruleRe = /^required|optional|repeated$/;
 
 /**
- * Generates a plain object to runtime message converter specific to the specified message type.
- * @param {Type} mtype Message type
- * @returns {Codegen} Codegen instance
+ * Constructs a new message field instance. Note that {@link MapField|map fields} have their own class.
+ * @name Field
+ * @classdesc Reflected message field.
+ * @extends FieldBase
+ * @constructor
+ * @param {string} name Unique name within its namespace
+ * @param {number} id Unique id within its namespace
+ * @param {string} type Value type
+ * @param {string|Object.<string,*>} [rule="optional"] Field rule
+ * @param {string|Object.<string,*>} [extend] Extended type if different from parent
+ * @param {Object.<string,*>} [options] Declared options
  */
-converter.fromObject = function fromObject(mtype) {
-    /* eslint-disable no-unexpected-multiline, block-scoped-var, no-redeclare */
-    var fields = mtype.fieldsArray;
-    var gen = util.codegen(["d"], mtype.name + "$fromObject")
-    ("if(d instanceof this.ctor)")
-        ("return d");
-    if (!fields.length) return gen
-    ("return new this.ctor");
-    gen
-    ("var m=new this.ctor");
-    for (var i = 0; i < fields.length; ++i) {
-        var field  = fields[i].resolve(),
-            prop   = util.safeProp(field.name);
 
-        // Map fields
-        if (field.map) { gen
-    ("if(d%s){", prop)
-        ("m%s={}", prop)
-        ("for(var ks=Object.keys(d%s),i=0;i<ks.length;++i){", prop);
-            genValuePartial_fromObject(gen, field, /* not sorted */ i, prop + "[ks[i]]")
-        ("}")
-    ("}");
-
-        // Repeated fields
-        } else if (field.repeated) { gen
-    ("if(d%s){", prop)
-        ("if(!Array.isArray(d%s))", prop)
-            ("throw TypeError(%j)", field.fullName + ": array expected")
-        ("m%s=[]", prop)
-        ("for(var i=0;i<d%s.length;++i){", prop);
-            genValuePartial_fromObject(gen, field, /* not sorted */ i, prop + "[i]")
-        ("}")
-    ("}");
-
-        // Non-repeated fields
-        } else {
-            if (!(field.resolvedType instanceof Enum)) gen // no need to test for null/undefined if an enum (uses switch)
-    ("if(d%s!=null){", prop); // !== undefined && !== null
-        genValuePartial_fromObject(gen, field, /* not sorted */ i, prop);
-            if (!(field.resolvedType instanceof Enum)) gen
-    ("}");
-        }
-    }
-
-    var result = gen("return m");
-    return result;
-    /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
+/**
+ * Constructs a field from a field descriptor.
+ * @param {string} name Field name
+ * @param {IField} json Field descriptor
+ * @returns {Field} Created field
+ * @throws {TypeError} If arguments are invalid
+ */
+Field.fromJSON = function fromJSON(name, json) {
+    return new Field(name, json.id, json.type, json.rule, json.extend, json.options, json.comment);
 };
 
 /**
- * Generates a partial value toObject converter.
- * @param {Codegen} gen Codegen instance
- * @param {Field} field Reflected field
- * @param {number} fieldIndex Field index
- * @param {string} prop Property reference
- * @returns {Codegen} Codegen instance
- * @ignore
+ * Not an actual constructor. Use {@link Field} instead.
+ * @classdesc Base class of all reflected message fields. This is not an actual class but here for the sake of having consistent type definitions.
+ * @exports FieldBase
+ * @extends ReflectionObject
+ * @constructor
+ * @param {string} name Unique name within its namespace
+ * @param {number} id Unique id within its namespace
+ * @param {string} type Value type
+ * @param {string|Object.<string,*>} [rule="optional"] Field rule
+ * @param {string|Object.<string,*>} [extend] Extended type if different from parent
+ * @param {Object.<string,*>} [options] Declared options
+ * @param {string} [comment] Comment associated with this field
  */
-function genValuePartial_toObject(gen, field, fieldIndex, prop) {
-    /* eslint-disable no-unexpected-multiline, block-scoped-var, no-redeclare */
-    if (field.resolvedType) {
-        if (field.resolvedType instanceof Enum) gen
-            ("d%s=o.enums===String?types[%i].values[m%s]:m%s", prop, fieldIndex, prop, prop);
-        else gen
-            ("d%s=types[%i].toObject(m%s,o)", prop, fieldIndex, prop);
-    } else {
-        var isUnsigned = false;
-        switch (field.type) {
-            case "double":
-            case "float": gen
-            ("d%s=o.json&&!isFinite(m%s)?String(m%s):m%s", prop, prop, prop, prop);
-                break;
-            case "uint64":
-                isUnsigned = true;
-                // eslint-disable-line no-fallthrough
-            case "int64":
-            case "sint64":
-            case "fixed64":
-            case "sfixed64": gen
-                ("d%s=o.longs===String ? util.LongBits.from(m%s).toBigInt(%s).toString(): o.longs===BigInt ? util.LongBits.from(m%s).toBigInt(%s) : m%s", prop, prop, isUnsigned, prop, isUnsigned ? "true": "", prop);
-                break;
-            case "bytes": gen
-            ("d%s=o.bytes===String?util.base64.encode(m%s,0,m%s.length):o.bytes===Array?Array.prototype.slice.call(m%s):m%s", prop, prop, prop, prop, prop);
-                break;
-            default: gen
-            ("d%s=m%s", prop, prop);
-                break;
-        }
+function Field(name, id, type, rule, extend, options, comment) {
+
+    if (util.isObject(rule)) {
+        comment = extend;
+        options = rule;
+        rule = extend = undefined;
+    } else if (util.isObject(extend)) {
+        comment = options;
+        options = extend;
+        extend = undefined;
     }
-    return gen;
-    /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
+
+    ReflectionObject.call(this, name, options);
+
+    if (!util.isInteger(id) || id < 0)
+        throw TypeError("id must be a non-negative integer");
+
+    if (!util.isString(type))
+        throw TypeError("type must be a string");
+
+    if (rule !== undefined && !ruleRe.test(rule = rule.toString().toLowerCase()))
+        throw TypeError("rule must be a string rule");
+
+    if (extend !== undefined && !util.isString(extend))
+        throw TypeError("extend must be a string");
+
+    /**
+     * Field rule, if any.
+     * @type {string|undefined}
+     */
+    if (rule === "proto3_optional") {
+        rule = "optional";
+    }
+    this.rule = rule && rule !== "optional" ? rule : undefined; // toJSON
+
+    /**
+     * Field type.
+     * @type {string}
+     */
+    this.type = type; // toJSON
+
+    /**
+     * Unique field id.
+     * @type {number}
+     */
+    this.id = id; // toJSON, marker
+
+    /**
+     * Extended type if different from parent.
+     * @type {string|undefined}
+     */
+    this.extend = extend || undefined; // toJSON
+
+    /**
+     * Whether this field is required.
+     * @type {boolean}
+     */
+    this.required = rule === "required";
+
+    /**
+     * Whether this field is optional.
+     * @type {boolean}
+     */
+    this.optional = !this.required;
+
+    /**
+     * Whether this field is repeated.
+     * @type {boolean}
+     */
+    this.repeated = rule === "repeated";
+
+    /**
+     * Whether this field is a map or not.
+     * @type {boolean}
+     */
+    this.map = false;
+
+    /**
+     * Message this field belongs to.
+     * @type {Type|null}
+     */
+    this.message = null;
+
+    /**
+     * OneOf this field belongs to, if any,
+     * @type {OneOf|null}
+     */
+    this.partOf = null;
+
+    /**
+     * The field type's default value.
+     * @type {*}
+     */
+    this.typeDefault = null;
+
+    /**
+     * The field's default value on prototypes.
+     * @type {*}
+     */
+    this.defaultValue = null;
+
+    /**
+     * Whether this field's value should be treated as a long.
+     * @type {boolean}
+     */
+    this.long = types.long[type] !== undefined;
+
+    /**
+     * Whether this field's value is a buffer.
+     * @type {boolean}
+     */
+    this.bytes = type === "bytes";
+
+    /**
+     * Resolved type if not a basic type.
+     * @type {Type|Enum|null}
+     */
+    this.resolvedType = null;
+
+    /**
+     * Sister-field within the extended type if a declaring extension field.
+     * @type {Field|null}
+     */
+    this.extensionField = null;
+
+    /**
+     * Sister-field within the declaring namespace if an extended field.
+     * @type {Field|null}
+     */
+    this.declaringField = null;
+
+    /**
+     * Internally remembers whether this field is packed.
+     * @type {boolean|null}
+     * @private
+     */
+    this._packed = null;
+
+    /**
+     * Comment for this field.
+     * @type {string|null}
+     */
+    this.comment = comment;
 }
 
 /**
- * Generates a runtime message to plain object converter specific to the specified message type.
- * @param {Type} mtype Message type
- * @returns {Codegen} Codegen instance
+ * Determines whether this field is packed. Only relevant when repeated and working with proto2.
+ * @name Field#packed
+ * @type {boolean}
+ * @readonly
  */
-converter.toObject = function toObject(mtype) {
-
-    /* eslint-disable no-unexpected-multiline, block-scoped-var, no-redeclare */
-    var fields = mtype.fieldsArray.slice().sort(util.compareFieldsById);
-    if (!fields.length)
-        return util.codegen()("return {}");
-    var gen = util.codegen(["m", "o"], mtype.name + "$toObject")
-    ("if(!o)")
-        ("o={}")
-    ("var d={}");
-
-    var repeatedFields = [],
-        mapFields = [],
-        normalFields = [],
-        i = 0;
-    for (; i < fields.length; ++i)
-        if (!fields[i].partOf)
-            ( fields[i].resolve().repeated ? repeatedFields
-            : fields[i].map ? mapFields
-            : normalFields).push(fields[i]);
-
-    if (repeatedFields.length) { gen
-    ("if(o.arrays||o.defaults){");
-        for (i = 0; i < repeatedFields.length; ++i) gen
-        ("d%s=[]", util.safeProp(repeatedFields[i].name));
-        gen
-    ("}");
+Object.defineProperty(Field.prototype, "packed", {
+    get: function() {
+        // defaults to packed=true if not explicity set to false
+        if (this._packed === null)
+            this._packed = this.getOption("packed") !== false;
+        return this._packed;
     }
+});
 
-    if (mapFields.length) { gen
-    ("if(o.objects||o.defaults){");
-        for (i = 0; i < mapFields.length; ++i) gen
-        ("d%s={}", util.safeProp(mapFields[i].name));
-        gen
-    ("}");
-    }
-
-    if (normalFields.length) { gen
-    ("if(o.defaults){");
-        for (i = 0; i < normalFields.length; ++i) {
-            var field = normalFields[i],
-                prop  = util.safeProp(field.name);
-            if (field.resolvedType instanceof Enum) gen
-        ("d%s=o.enums===String?%j:%j", prop, GetEnumValueName(field.resolvedType.name, field.resolvedType.valuesById[field.typeDefault]), field.typeDefault);
-            else if (field.long) gen
-            ("var n=new util.LongBits(%i,%i,%j)", field.typeDefault.low, field.typeDefault.high, field.typeDefault.unsigned)
-            ("d%s=o.longs===String?n.toBigInt().toString():o.longs===BigInt?n.toBigInt().toString():n", prop);
-            else if (field.bytes) {
-                var arrayDefault = "[" + Array.prototype.slice.call(field.typeDefault).join(",") + "]";
-                gen
-        ("if(o.bytes===String)d%s=%j", prop, String.fromCharCode.apply(String, field.typeDefault))
-        ("else{")
-            ("d%s=%s", prop, arrayDefault)
-            ("if(o.bytes!==Array)d%s=util.newBuffer(d%s)", prop, prop)
-        ("}");
-            } else gen
-        ("d%s=%j", prop, field.typeDefault); // also messages (=null)
-        } gen
-    ("}");
-    }
-    var hasKs2 = false;
-    for (i = 0; i < fields.length; ++i) {
-        var field = fields[i],
-            index = mtype._fieldsArray.indexOf(field),
-            prop  = util.safeProp(field.name);
-        if (field.map) {
-            if (!hasKs2) { hasKs2 = true; gen
-    ("var ks2");
-            } gen
-    ("if(m%s&&(ks2=Object.keys(m%s)).length){", prop, prop)
-        ("d%s={}", prop)
-        ("for(var j=0;j<ks2.length;++j){");
-            genValuePartial_toObject(gen, field, /* sorted */ index, prop + "[ks2[j]]")
-        ("}");
-        } else if (field.repeated) { gen
-    ("if(m%s&&m%s.length){", prop, prop)
-        ("d%s=[]", prop)
-        ("for(var j=0;j<m%s.length;++j){", prop);
-            genValuePartial_toObject(gen, field, /* sorted */ index, prop + "[j]")
-        ("}");
-        } else { gen
-    ("if(m%s!=null&&m.hasOwnProperty(%j)){", prop, field.name); // !== undefined && !== null
-        genValuePartial_toObject(gen, field, /* sorted */ index, prop);
-        if (field.partOf) gen
-        ("if(o.oneofs)")
-            ("d%s=%j", util.safeProp(field.partOf.name), field.name);
-        }
-        gen
-    ("}");
-    }
-    const result = gen
-        ("return d");
-    return result;
-    /* eslint-enable no-unexpected-multiline, block-scoped-var, no-redeclare */
+/**
+ * @override
+ */
+Field.prototype.setOption = function setOption(name, value, ifNotSet) {
+    if (name === "packed") // clear cached before setting
+        this._packed = null;
+    return ReflectionObject.prototype.setOption.call(this, name, value, ifNotSet);
 };
 
-
-
-function IsDigit(value)
-{
-    return /^[0-9]$/.test(value)
-}
-
+/**
+ * Field descriptor.
+ * @interface IField
+ * @property {string} [rule="optional"] Field rule
+ * @property {string} type Field type
+ * @property {number} id Field id
+ * @property {Object.<string,*>} [options] Field options
+ */
 
 /**
- * Generates a runtime message to plain object converter specific to the specified message type.
- * @param {String} enum_name Message type
- * @param {String} enum_value_name 
- * @returns {String} RealName instance
+ * Extension field descriptor.
+ * @interface IExtensionField
+ * @extends IField
+ * @property {string} extend Extended type
  */
-function GetEnumValueName(enum_name, enum_value_name)
-{
-    let stripped = TryRemovePrefix(enum_name, enum_value_name);
-    let result = ShoutyToPascalCase(stripped);
-    // Just in case we have an enum name of FOO and a value of FOO_2... make sure the returned
-    // string is a valid identifier.
-    
-    if (IsDigit(result.charAt(0)))
-    {
-        result = "_" + result;
-    }
-    return result;
-}
 
-exports.GetEnumValueName = GetEnumValueName;
+/**
+ * Converts this field to a field descriptor.
+ * @param {IToJSONOptions} [toJSONOptions] JSON conversion options
+ * @returns {IField} Field descriptor
+ */
+Field.prototype.toJSON = function toJSON(toJSONOptions) {
+    var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+    return util.toObject([
+        "rule"    , this.rule !== "optional" && this.rule || undefined,
+        "type"    , this.type,
+        "id"      , this.id,
+        "extend"  , this.extend,
+        "options" , this.options,
+        "comment" , keepComments ? this.comment : undefined
+    ]);
+};
 
-// Attempt to remove a prefix from a value, ignoring casing and skipping underscores.
-// (foo, foo_bar) => bar - underscore after prefix is skipped
-// (FOO, foo_bar) => bar - casing is ignored
-// (foo_bar, foobarbaz) => baz - underscore in prefix is ignored
-// (foobar, foo_barbaz) => baz - underscore in value is ignored
-// (foo, bar) => bar - prefix isn't matched; return original value
+/**
+ * Resolves this field's type references.
+ * @returns {Field} `this`
+ * @throws {Error} If any reference cannot be resolved
+ */
+Field.prototype.resolve = function resolve() {
 
-function TryRemovePrefix(prefix, value)
-{
-    var prefix_to_match = '';
-    // First normalize to a lower-case no-underscores prefix to match against
-    for (let i = 0; i < prefix.length; i++)
-    {
-        let c = prefix.charAt(i)
-        if (c != '_')
-        {
-            prefix_to_match += c.toLowerCase();
-        }
-    }
+    if (this.resolved)
+        return this;
 
-    // This keeps track of how much of value we've consumed
-    let prefix_index, value_index;
-    for (prefix_index = 0, value_index = 0;
-        prefix_index < prefix_to_match.length && value_index < value.length;
-        value_index++)
-    {
-        // Skip over underscores in the value
-        let c = value.charAt(value_index)
-        if (c == '_')
-        {
-            continue;
-        }
-        if (c != null && c.toLowerCase() != prefix_to_match.charAt(prefix_index++))
-        {
-            // Failed to match the prefix - bail out early.
-            return value;
-        }
+    if ((this.typeDefault = types.defaults[this.type]) === undefined) { // if not a basic type, resolve it
+        this.resolvedType = (this.declaringField ? this.declaringField.parent : this.parent).lookupTypeOrEnum(this.type);
+        if (this.resolvedType instanceof Type)
+            this.typeDefault = null;
+        else // instanceof Enum
+            this.typeDefault = this.resolvedType.values[Object.keys(this.resolvedType.values)[0]]; // first defined
     }
 
-    // If we didn't finish looking through the prefix, we can't strip it.
-    if (prefix_index < prefix_to_match.length)
-    {
-        return value;
+    // use explicitly set default value if present
+    if (this.options && this.options["default"] != null) {
+        this.typeDefault = this.options["default"];
+        if (this.resolvedType instanceof Enum && typeof this.typeDefault === "string")
+            this.typeDefault = this.resolvedType.values[this.typeDefault];
     }
 
-    // Step over any underscores after the prefix
-    while (value_index < value.length && value.charAt(value_index) == '_')
-    {
-        value_index++;
+    // remove unnecessary options
+    if (this.options) {
+        if (this.options.packed === true || this.options.packed !== undefined && this.resolvedType && !(this.resolvedType instanceof Enum))
+            delete this.options.packed;
+        if (!Object.keys(this.options).length)
+            this.options = undefined;
     }
 
-    // If there's nothing left (e.g. it was a prefix with only underscores afterwards), don't strip.
-    if (value_index == value.length)
-    {
-        return value;
-    }
-
-    let c = value.substr(value_index);
-    return c;
-}
-
-
-function IsLetterOrDigit(char)
-{
-    return /^[a-zA-Z0-9]$/.test(char);
-}
-
-// Convert a string which is expected to be SHOUTY_CASE (but may not be *precisely* shouty)
-// into a PascalCase string. Precise rules implemented:
-
-// Previous input character      Current character         Case
-// Any                           Non-alphanumeric          Skipped
-// None - first char of input    Alphanumeric              Upper
-// Non-letter (e.g. _ or 1)      Alphanumeric              Upper
-// Numeric                       Alphanumeric              Upper
-// Lower letter                  Alphanumeric              Same as current
-// Upper letter                  Alphanumeric              Lower
-function ShoutyToPascalCase(input)
-{
-    var result = ""
-    // Simple way of implementing "always start with upper"
-    var previous = '_';
-    for (let i = 0; i < input.length; i++)
-    {
-        let current = input.charAt(i);
-        if (!IsLetterOrDigit(current))
-        {
-            previous = current;
-            continue;
-        }
-        if (!IsLetterOrDigit(previous))
-        {
-            result += current.toUpperCase();
-        }
-        else if (IsDigit(previous))
-        {
-            result += current.toUpperCase();
-        }
-        else if (/^[a-z]$/.test(previous))
-        {
-            result += (current);
-        }
+    // convert to internal data type if necesssary
+    if (this.bytes && typeof this.typeDefault === "string") {
+        var buf;
+        if (util.base64.test(this.typeDefault))
+            util.base64.decode(this.typeDefault, buf = util.newBuffer(util.base64.length(this.typeDefault)), 0);
         else
-        {
-            result += (current.toLowerCase());
-        }
-        previous = current;
+            util.utf8.write(this.typeDefault, buf = util.newBuffer(util.utf8.length(this.typeDefault)), 0);
+        this.typeDefault = buf;
     }
-    return result;
-}
+
+    // take special care of maps and repeated fields
+    if (this.map)
+        this.defaultValue = util.emptyObject;
+    else if (this.repeated)
+        this.defaultValue = util.emptyArray;
+    else
+        this.defaultValue = this.typeDefault;
+
+    // ensure proper value on prototype
+    if (this.parent instanceof Type)
+        this.parent.ctor.prototype[this.name] = this.defaultValue;
+
+    return ReflectionObject.prototype.resolve.call(this);
+};
+
+/**
+ * Decorator function as returned by {@link Field.d} and {@link MapField.d} (TypeScript).
+ * @typedef FieldDecorator
+ * @type {function}
+ * @param {Object} prototype Target prototype
+ * @param {string} fieldName Field name
+ * @returns {undefined}
+ */
+
+/**
+ * Field decorator (TypeScript).
+ * @name Field.d
+ * @function
+ * @param {number} fieldId Field id
+ * @param {"double"|"float"|"int32"|"uint32"|"sint32"|"fixed32"|"sfixed32"|"int64"|"uint64"|"sint64"|"fixed64"|"sfixed64"|"string"|"bool"|"bytes"|Object} fieldType Field type
+ * @param {"optional"|"required"|"repeated"} [fieldRule="optional"] Field rule
+ * @param {T} [defaultValue] Default value
+ * @returns {FieldDecorator} Decorator function
+ * @template T extends number | number[] | bigint | bigint[] | string | string[] | boolean | boolean[] | Uint8Array | Uint8Array[] | Buffer | Buffer[]
+ */
+Field.d = function decorateField(fieldId, fieldType, fieldRule, defaultValue) {
+
+    // submessage: decorate the submessage and use its name as the type
+    if (typeof fieldType === "function")
+        fieldType = util.decorateType(fieldType).name;
+
+    // enum reference: create a reflected copy of the enum and keep reuseing it
+    else if (fieldType && typeof fieldType === "object")
+        fieldType = util.decorateEnum(fieldType).name;
+
+    return function fieldDecorator(prototype, fieldName) {
+        util.decorateType(prototype.constructor)
+            .add(new Field(fieldName, fieldId, fieldType, fieldRule, { "default": defaultValue }));
+    };
+};
+
+/**
+ * Field decorator (TypeScript).
+ * @name Field.d
+ * @function
+ * @param {number} fieldId Field id
+ * @param {Constructor<T>|string} fieldType Field type
+ * @param {"optional"|"required"|"repeated"} [fieldRule="optional"] Field rule
+ * @returns {FieldDecorator} Decorator function
+ * @template T extends Message<T>
+ * @variation 2
+ */
+// like Field.d but without a default value
+
+// Sets up cyclic dependencies (called in index-light)
+Field._configure = function configure(Type_) {
+    Type = Type_;
+};

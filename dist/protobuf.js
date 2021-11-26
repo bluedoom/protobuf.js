@@ -1,6 +1,6 @@
 /*!
  * protobuf.js v6.10.2 (c) 2016, daniel wirtz
- * compiled wed, 03 nov 2021 08:09:44 utc
+ * compiled fri, 26 nov 2021 05:47:20 utc
  * licensed under the bsd-3-clause license
  * see: https://github.com/dcodeio/protobuf.js for details
  */
@@ -1538,7 +1538,7 @@ function genValuePartial_fromObject(gen, field, fieldIndex, prop) {
                 if (field.repeated && values[keys[i]] === field.typeDefault) gen
                 ("default:");
                 gen
-                ("case%j:", keys[i])
+                ("case%j:", GetEnumValueName(field.resolvedType.name,keys[i]))
                 ("case %i:", values[keys[i]])
                     ("m%s=%j", prop, values[keys[i]])
                     ("break");
@@ -1743,7 +1743,7 @@ converter.toObject = function toObject(mtype) {
             var field = normalFields[i],
                 prop  = util.safeProp(field.name);
             if (field.resolvedType instanceof Enum) gen
-        ("d%s=o.enums===String?%j:%j", prop, field.resolvedType.valuesById[field.typeDefault], field.typeDefault);
+        ("d%s=o.enums===String?%j:%j", prop, GetEnumValueName(field.resolvedType.name, field.resolvedType.valuesById[field.typeDefault]), field.typeDefault);
             else if (field.long) gen
             ("var n=new util.LongBits(%i,%i,%j)", field.typeDefault.low, field.typeDefault.high, field.typeDefault.unsigned)
             ("d%s=o.longs===String?n.toBigInt().toString():o.longs===BigInt?n.toBigInt().toString():n", prop);
