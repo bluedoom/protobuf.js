@@ -788,10 +788,9 @@ export abstract class NamespaceBase extends ReflectionObject {
      * Defines additial namespaces within this one if not yet existing.
      * @param path Path to create
      * @param [json] Nested types to create from JSON
-     * @param [filename] Name of the file defining the namespace
      * @returns Pointer to the last namespace created or `this` if path is empty
      */
-    public define(path: (string|string[]), json?: any, filename?: string): Namespace;
+    public define(path: (string|string[]), json?: any): Namespace;
 
     /**
      * Resolves this namespace's and all its nested objects' type references. Useful to validate a reflection tree, but comes at a cost.
@@ -1256,9 +1255,6 @@ export class Root extends NamespaceBase {
 
     /** Resolved file names of loaded files. */
     public files: string[];
-
-    /** Paths of imported files */
-    public imports: (string[]|null);
 
     /**
      * Loads a namespace descriptor into a root namespace.

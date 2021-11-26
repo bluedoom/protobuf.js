@@ -286,10 +286,6 @@ converter.toObject = function toObject(mtype) {
 
 
 
-function IsDigit(value)
-{
-    return /^[0-9]$/.test(value)
-}
 
 
 /**
@@ -313,6 +309,13 @@ function GetEnumValueName(enum_name, enum_value_name)
 }
 
 exports.GetEnumValueName = GetEnumValueName;
+
+
+function IsDigit(value)
+{
+    return /^[0-9]$/.test(value)
+}
+
 
 // Attempt to remove a prefix from a value, ignoring casing and skipping underscores.
 // (foo, foo_bar) => bar - underscore after prefix is skipped
