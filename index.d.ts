@@ -1892,7 +1892,7 @@ export namespace util {
          * @param value Value
          * @returns Instance
          */
-        public static fromBigInt(value: number): util.LongBits;
+        public static fromBigInt(value: bigint): util.LongBits;
 
         /**
          * Constructs new long bits from the specified number.

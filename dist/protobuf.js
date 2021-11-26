@@ -1,6 +1,6 @@
 /*!
  * protobuf.js v6.10.2 (c) 2016, daniel wirtz
- * compiled fri, 26 nov 2021 06:13:54 utc
+ * compiled fri, 26 nov 2021 06:17:51 utc
  * licensed under the bsd-3-clause license
  * see: https://github.com/dcodeio/protobuf.js for details
  */
@@ -7697,7 +7697,7 @@ const TWO_32 = 4294967296n;
 
 /**
  * Constructs new long bits from the specified number.
- * @param {number} value Value
+ * @param {bigint} value Value
  * @returns {util.LongBits} Instance
  */
 LongBits.fromBigInt = function fromNumber(value) {

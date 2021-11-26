@@ -44,7 +44,7 @@ const TWO_32 = 4294967296n;
 
 /**
  * Constructs new long bits from the specified number.
- * @param {number} value Value
+ * @param {bigint} value Value
  * @returns {util.LongBits} Instance
  */
 LongBits.fromBigInt = function fromNumber(value) {
