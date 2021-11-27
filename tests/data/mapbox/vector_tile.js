@@ -224,17 +224,6 @@ $root.vector_tile = (function() {
         };
 
         /**
-         * Gets the default type url for Tile
-         * @function getTypeUrl
-         * @memberof vector_tile.Tile
-         * @static
-         * @returns {string} The default type url
-         */
-        Tile.getTypeUrl = function getTypeUrl() {
-            return "type.googleapis.com/vector_tile.Tile";
-        };
-
-        /**
          * GeomType enum.
          * @name vector_tile.Tile.GeomType
          * @enum {number}
@@ -245,10 +234,10 @@ $root.vector_tile = (function() {
          */
         Tile.GeomType = (function() {
             var valuesById = {}, values = Object.create(valuesById);
-            values[valuesById[0] = "UNKNOWN"] = 0;
-            values[valuesById[1] = "POINT"] = 1;
-            values[valuesById[2] = "LINESTRING"] = 2;
-            values[valuesById[3] = "POLYGON"] = 3;
+            values[valuesById[0] = "Unknown"] = 0;
+            values[valuesById[1] = "Point"] = 1;
+            values[valuesById[2] = "Linestring"] = 2;
+            values[valuesById[3] = "Polygon"] = 3;
             return values;
         })();
 
@@ -581,17 +570,6 @@ $root.vector_tile = (function() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
             };
 
-            /**
-             * Gets the default type url for Value
-             * @function getTypeUrl
-             * @memberof vector_tile.Tile.Value
-             * @static
-             * @returns {string} The default type url
-             */
-            Value.getTypeUrl = function getTypeUrl() {
-                return "type.googleapis.com/vector_tile.Tile.Value";
-            };
-
             return Value;
         })();
 
@@ -846,19 +824,19 @@ $root.vector_tile = (function() {
                         message.tags[i] = object.tags[i] >>> 0;
                 }
                 switch (object.type) {
-                case "UNKNOWN":
+                case "Unknown":
                 case 0:
                     message.type = 0;
                     break;
-                case "POINT":
+                case "Point":
                 case 1:
                     message.type = 1;
                     break;
-                case "LINESTRING":
+                case "Linestring":
                 case 2:
                     message.type = 2;
                     break;
-                case "POLYGON":
+                case "Polygon":
                 case 3:
                     message.type = 3;
                     break;
@@ -893,7 +871,7 @@ $root.vector_tile = (function() {
                 if (options.defaults) {
                     var long = new $util.LongBits(NaN, NaN, undefined);
                     object.id = options.longs === String ? long.toBigInt().toString() : options.longs === BigInt ? long.toBigInt().toString() : long;
-                    object.type = options.enums === String ? "UNKNOWN" : 0;
+                    object.type = options.enums === String ? "Unknown" : 0;
                 }
                 if (message.id != null && message.hasOwnProperty("id"))
                     object.id = options.longs === String ? $util.LongBits.from(message.id).toBigInt(true).toString() : options.longs === BigInt ? $util.LongBits.from(message.id).toBigInt(true) : message.id;
@@ -921,17 +899,6 @@ $root.vector_tile = (function() {
              */
             Feature.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-            };
-
-            /**
-             * Gets the default type url for Feature
-             * @function getTypeUrl
-             * @memberof vector_tile.Tile.Feature
-             * @static
-             * @returns {string} The default type url
-             */
-            Feature.getTypeUrl = function getTypeUrl() {
-                return "type.googleapis.com/vector_tile.Tile.Feature";
             };
 
             return Feature;
@@ -1290,17 +1257,6 @@ $root.vector_tile = (function() {
              */
             Layer.prototype.toJSON = function toJSON() {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-            };
-
-            /**
-             * Gets the default type url for Layer
-             * @function getTypeUrl
-             * @memberof vector_tile.Tile.Layer
-             * @static
-             * @returns {string} The default type url
-             */
-            Layer.getTypeUrl = function getTypeUrl() {
-                return "type.googleapis.com/vector_tile.Tile.Layer";
             };
 
             return Layer;

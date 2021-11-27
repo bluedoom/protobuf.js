@@ -417,11 +417,11 @@ $root.Message = (function() {
                     message.bytesRepeated[i] = object.bytesRepeated[i];
         }
         switch (object.enumVal) {
-        case "ONE":
+        case "One":
         case 1:
             message.enumVal = 1;
             break;
-        case "TWO":
+        case "Two":
         case 2:
             message.enumVal = 2;
             break;
@@ -433,11 +433,11 @@ $root.Message = (function() {
             for (var i = 0; i < object.enumRepeated.length; ++i)
                 switch (object.enumRepeated[i]) {
                 default:
-                case "ONE":
+                case "One":
                 case 1:
                     message.enumRepeated[i] = 1;
                     break;
-                case "TWO":
+                case "Two":
                 case 2:
                     message.enumRepeated[i] = 2;
                     break;
@@ -486,7 +486,7 @@ $root.Message = (function() {
                 if (options.bytes !== Array)
                     object.bytesVal = $util.newBuffer(object.bytesVal);
             }
-            object.enumVal = options.enums === String ? "ONE" : 1;
+            object.enumVal = options.enums === String ? "One" : 1;
         }
         if (message.stringVal != null && message.hasOwnProperty("stringVal"))
             object.stringVal = message.stringVal;
@@ -537,17 +537,6 @@ $root.Message = (function() {
     };
 
     /**
-     * Gets the default type url for Message
-     * @function getTypeUrl
-     * @memberof Message
-     * @static
-     * @returns {string} The default type url
-     */
-    Message.getTypeUrl = function getTypeUrl() {
-        return "type.googleapis.com/Message";
-    };
-
-    /**
      * SomeEnum enum.
      * @name Message.SomeEnum
      * @enum {number}
@@ -556,8 +545,8 @@ $root.Message = (function() {
      */
     Message.SomeEnum = (function() {
         var valuesById = {}, values = Object.create(valuesById);
-        values[valuesById[1] = "ONE"] = 1;
-        values[valuesById[2] = "TWO"] = 2;
+        values[valuesById[1] = "One"] = 1;
+        values[valuesById[2] = "Two"] = 2;
         return values;
     })();
 

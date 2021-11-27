@@ -157,7 +157,7 @@ tape.test("converters", function(test) {
                 bytesVal: "MTEx",
                 bytesRepeated: ["MTEx", [49, 49, 49]],
                 enumVal: "ONE",
-                enumRepeated: [2, "TWO"],
+                enumRepeated: [2, "Two"],
                 int64Map: {
                     a: 2,
                     b: "3"

@@ -1,6 +1,6 @@
 /*!
  * protobuf.js v6.10.2 (c) 2016, daniel wirtz
- * compiled fri, 26 nov 2021 06:17:51 utc
+ * compiled sat, 27 nov 2021 08:21:58 utc
  * licensed under the bsd-3-clause license
  * see: https://github.com/dcodeio/protobuf.js for details
  */
@@ -7694,23 +7694,28 @@ zero.zzEncode = zero.zzDecode = function() { return this; };
 zero.length = function() { return 1; };
 
 const TWO_32 = 4294967296n;
-
+const MAX_SAFE_LONG = 0xFFFFFFFFFFFFFFFFn;
+const MIN_SAFE_LONG = -0x8000000000000000n;
 /**
  * Constructs new long bits from the specified number.
  * @param {bigint} value Value
  * @returns {util.LongBits} Instance
  */
-LongBits.fromBigInt = function fromNumber(value) {
-    value = BigInt(value);
+LongBits.fromBigInt = function fromBigInt(value) {
+    value = value instanceof BigInt? value: BigInt(value);
     if (value === 0n)
         return zero;
-
+    if(value > MAX_SAFE_LONG || value < MIN_SAFE_LONG)
+    {
+        throw new Error(`BigInt: ${value} is out of range of UInt64/Int64 [${MIN_SAFE_LONG} , ${MAX_SAFE_LONG}]`);
+    }
     var negative = value < 0;
     if (negative) {
         value = -value;
     }
-    var hi = Number(value >> 32n) | 0;
+    var hi = Number(value >> 32n);
     var lo = Number(value - ( BigInt(hi) << 32n ) ) | 0;
+    hi |= 0;
 
     if (negative) {
         hi = ~hi >>> 0;

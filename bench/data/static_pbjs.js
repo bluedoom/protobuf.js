@@ -168,11 +168,12 @@ $root.Test = (function() {
 
     Test.Enum = (function() {
         var valuesById = {}, values = Object.create(valuesById);
-        values[valuesById[0] = "ONE"] = 0;
-        values[valuesById[1] = "TWO"] = 1;
-        values[valuesById[2] = "THREE"] = 2;
-        values[valuesById[3] = "FOUR"] = 3;
-        values[valuesById[4] = "FIVE"] = 4;
+        values[valuesById[0] = "Zero"] = 0;
+        values[valuesById[1] = "One"] = 1;
+        values[valuesById[2] = "Two"] = 2;
+        values[valuesById[3] = "Three"] = 3;
+        values[valuesById[4] = "Four"] = 4;
+        values[valuesById[5] = "Five"] = 5;
         return values;
     })();
 

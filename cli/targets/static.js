@@ -343,7 +343,7 @@ function toJsType(field, bundle, importInfo) {
             break;
         default:
             if (field.resolve().resolvedType)
-                type = getAliasedType(field.resolvedType, bundle, importInfo)
+                type = exportName(field.resolvedType, !(field.resolvedType instanceof protobuf.Enum || config.forceMessage));
             else
                 type = "*"; // should not happen
             break;

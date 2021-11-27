@@ -3,7 +3,30 @@ var tape = require("tape");
 var protobuf = require("..");
 var LongBits = protobuf.util.LongBits;
 var Long = require('long');
+function fromBigInt(value) {
+    value = BigInt(value);
+    if (value === 0n)
+        return zero;
 
+    var negative = value < 0;
+    if (negative) {
+        value = -value;
+    }
+    var hi = Number(value >> 32n) | 0;
+    var lo = Number(value - ( BigInt(hi) << 32n ) ) | 0;
+
+    if (negative) {
+        hi = ~hi >>> 0;
+        lo = ~lo >>> 0;
+        if (++lo > TWO_32) {
+            lo = 0;
+            if (++hi > TWO_32)
+                hi = 0;
+        }
+    }
+
+    return new LongBits(lo, hi);
+};
 tape.test("longbits", function(test) {
 
     test.test(test.name + " - zero", function(test) {
@@ -68,6 +91,18 @@ tape.test("longbits", function(test) {
 
     var num = -4294967296 * 4294967296;
     var bits = LongBits.fromNumber(num);
+    let maxLongBits = LongBits.from(0xFFFFFFFFFFFFFFFFn);
+    test.equal(maxLongBits.toBigInt(false),-1n,"should equal -1n");
+    test.equal(maxLongBits.toBigInt(true),0xFFFFFFFFFFFFFFFFn,"should equal 0xFFFFFFFFFFFFFFFF (unsigned)");
+    let minLongBits = LongBits.from(0x7FFFFFFFFFFFFFFFn + 1n)
+    test.equal(minLongBits.toBigInt(false),-0x7FFFFFFFFFFFFFFFn - 1n,"should equal -0x7FFFFFFFFFFFFFFFn");
+    test.equal(minLongBits.toBigInt(true),0x7FFFFFFFFFFFFFFFn + 1n, "should equal 0xFFFFFFFFFFFFFFFF (unsigned)");
+    test.throws(()=>{
+        LongBits.from(0xFFFFFFFFFFFFFFFFn + 1n);
+    },/out of range/, "out of range");
+    test.throws(()=>{
+        LongBits.from(-0x8000000000000000n - 1n);
+    },/out of range/, "out of range");
     test.equal(bits.lo, 0, "lo and hi should properly overflow when converting " + num);
     test.equal(bits.hi, 0, "lo and hi should properly overflow when converting " + num);
 

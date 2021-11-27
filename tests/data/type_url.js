@@ -198,17 +198,6 @@ $root.TypeUrlTest = (function() {
         return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
     };
 
-    /**
-     * Gets the default type url for TypeUrlTest
-     * @function getTypeUrl
-     * @memberof TypeUrlTest
-     * @static
-     * @returns {string} The default type url
-     */
-    TypeUrlTest.getTypeUrl = function getTypeUrl() {
-        return "type.googleapis.com/TypeUrlTest";
-    };
-
     TypeUrlTest.Nested = (function() {
 
         /**
@@ -391,17 +380,6 @@ $root.TypeUrlTest = (function() {
          */
         Nested.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
-        };
-
-        /**
-         * Gets the default type url for Nested
-         * @function getTypeUrl
-         * @memberof TypeUrlTest.Nested
-         * @static
-         * @returns {string} The default type url
-         */
-        Nested.getTypeUrl = function getTypeUrl() {
-            return "type.googleapis.com/TypeUrlTest.Nested";
         };
 
         return Nested;
